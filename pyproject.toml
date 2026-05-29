@@ -1,0 +1,13 @@
+[project]
+name = "clickhouse-worker"
+version = "0.1.0"
+description = "Small reusable ClickHouse helpers"
+requires-python = ">=3.13"
+dependencies = [
+    "clickhouse_connect>=0.15.1",
+    "pandas>=3.0.2",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

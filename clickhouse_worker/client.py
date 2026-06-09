@@ -13,6 +13,8 @@ import pandas as pd
 
 
 MAX_SAFE_JS_INT = 2**53 - 1
+SCALAR_SUBQUERY_EMPTY_RESULT_MESSAGE = "Scalar subquery returned empty result"
+SCALAR_SUBQUERY_EMPTY_RESULT_MAX_RETRIES = 5
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +108,22 @@ def json_safe_cell(value: Any) -> Any:
     return value
 
 
+def _is_scalar_subquery_empty_result(exc: Exception) -> bool:
+    return SCALAR_SUBQUERY_EMPTY_RESULT_MESSAGE in str(exc)
+
+
+def _query_to_dataframe(client: Any, sql: str) -> pd.DataFrame:
+    result = client.query(sql)
+    columns = list(result.column_names or [])
+    if result.first_row:
+        for index, cell in enumerate(result.first_row):
+            logger.info("cell info: col=%s value=%s type=%s", columns[index], cell, type(cell))
+    else:
+        logger.info("ClickHouse returned no rows")
+
+    return pd.DataFrame(result.result_rows, columns=result.column_names)
+
+
 def execute_sql_modify(sql: str, *, client_factory: Callable[[], Any] = create_client) -> None:
     sql = sanitize_sql(sql)
     client = client_factory()
@@ -131,25 +149,31 @@ def execute_sql(
     if max_rows is not None:
         sql = f"select * from ({sql}) limit {int(max_rows)}"
 
-    client = client_factory()
-    try:
-        result = client.query(sql)
-        columns = list(result.column_names or [])
-        if result.first_row:
-            for index, cell in enumerate(result.first_row):
-                logger.info("cell info: col=%s value=%s type=%s", columns[index], cell, type(cell))
-        else:
-            logger.info("ClickHouse returned no rows")
+    for attempt in range(SCALAR_SUBQUERY_EMPTY_RESULT_MAX_RETRIES + 1):
+        client = client_factory()
+        try:
+            return _query_to_dataframe(client, sql)
+        except ClickHouseError as exc:
+            if (
+                _is_scalar_subquery_empty_result(exc)
+                and attempt < SCALAR_SUBQUERY_EMPTY_RESULT_MAX_RETRIES
+            ):
+                logger.warning(
+                    "Retrying ClickHouse query after scalar subquery empty result "
+                    "(attempt %s/%s)",
+                    attempt + 1,
+                    SCALAR_SUBQUERY_EMPTY_RESULT_MAX_RETRIES,
+                )
+                continue
+            raise ClickHouseQueryError(str(exc)) from exc
+        except ValueError as exc:
+            raise ClickHouseQueryError(f"Invalid response: {exc}") from exc
+        except Exception as exc:
+            raise ClickHouseQueryError(f"Unexpected error: {exc}") from exc
+        finally:
+            client.close()
 
-        return pd.DataFrame(result.result_rows, columns=result.column_names)
-    except ClickHouseError as exc:
-        raise ClickHouseQueryError(str(exc)) from exc
-    except ValueError as exc:
-        raise ClickHouseQueryError(f"Invalid response: {exc}") from exc
-    except Exception as exc:
-        raise ClickHouseQueryError(f"Unexpected error: {exc}") from exc
-    finally:
-        client.close()
+    raise ClickHouseQueryError(SCALAR_SUBQUERY_EMPTY_RESULT_MESSAGE)
 
 
 def insert_dataframe(

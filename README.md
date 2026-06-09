@@ -12,8 +12,9 @@ It wraps the common operations used by application code:
 - normalize SQL and convert large integers to JSON-safe values.
 
 The library intentionally stays thin. It does not implement migrations, query
-builders, connection lifecycle management, retries, or schema inference beyond a
-small dtype helper.
+builders, connection lifecycle management, or schema inference beyond a small
+dtype helper. The read-query helper has one targeted retry path for a known
+ClickHouse replica race: `Scalar subquery returned empty result`.
 
 ## Requirements
 
@@ -273,10 +274,12 @@ Parameters:
 Behavior:
 
 - sanitizes SQL;
-- creates a client;
+- creates a client for each attempt;
 - executes the query;
+- retries the same query up to 5 times when ClickHouse returns
+  `Scalar subquery returned empty result`;
 - converts `result.result_rows` and `result.column_names` into a DataFrame;
-- always closes the client in `finally`.
+- always closes each client in `finally`.
 
 Raises:
 

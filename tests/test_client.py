@@ -44,7 +44,7 @@ class FakeClient:
 
 
 class ExecuteSqlTests(unittest.TestCase):
-    def test_empty_result_does_not_read_first_row(self):
+    def test_empty_result_returns_dataframe_with_column_names(self):
         client = FakeClient()
 
         df = execute_sql("SELECT id FROM empty_table", client_factory=lambda: client)

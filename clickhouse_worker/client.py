@@ -115,13 +115,14 @@ def _is_scalar_subquery_empty_result(exc: Exception) -> bool:
 def _query_to_dataframe(client: Any, sql: str) -> pd.DataFrame:
     result = client.query(sql)
     columns = list(result.column_names or [])
-    if result.first_row:
-        for index, cell in enumerate(result.first_row):
+    result_rows = list(result.result_rows or [])
+    if result_rows:
+        for index, cell in enumerate(result_rows[0]):
             logger.info("cell info: col=%s value=%s type=%s", columns[index], cell, type(cell))
     else:
         logger.info("ClickHouse returned no rows")
 
-    return pd.DataFrame(result.result_rows, columns=result.column_names)
+    return pd.DataFrame(result_rows, columns=columns)
 
 
 def execute_sql_modify(sql: str, *, client_factory: Callable[[], Any] = create_client) -> None:

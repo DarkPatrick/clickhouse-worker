@@ -1,6 +1,6 @@
 [project]
 name = "clickhouse-worker"
-version = "0.2.0"
+version = "0.2.1"
 description = "Small reusable ClickHouse helpers"
 requires-python = ">=3.13"
 dependencies = [

@@ -80,6 +80,7 @@ def _get_client():
 
 
 def sanitize_sql(sql: str, *, allow_multiple_statements: bool = False) -> str:
+    """Normalize one SQL statement; callers should pass SQL without semicolons."""
     sql = (sql or "").strip().strip(";")
     if not sql:
         raise ClickHouseQueryError("SQL is empty.")

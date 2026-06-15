@@ -86,6 +86,11 @@ finally:
 
 ### Run a SELECT query
 
+> **Agent rule:** pass SQL without semicolons. Do not end queries with `;`, and
+> do not include `;` inside query strings. The execution helpers accept one
+> statement only and will raise `ClickHouseQueryError` when an extra semicolon
+> remains after normalization.
+
 ```python
 from clickhouse_worker import execute_sql
 
@@ -250,6 +255,10 @@ Normalizes SQL before execution:
 - strips leading/trailing semicolons;
 - dedents multiline strings;
 - rejects multiple statements by default if a semicolon remains inside the SQL.
+
+For agent-generated queries, the safe default is to never include semicolons at
+all. Write `SELECT 1`, not `SELECT 1;`. This matters especially when
+`max_rows` is used, because the library wraps the original query as a subquery.
 
 Raises:
 
@@ -444,6 +453,9 @@ This section is written for AI coding agents and future maintainers.
   `ClickHouseConnectionError` or `ClickHouseQueryError`.
 - `sanitize_sql()` is not a SQL injection prevention system. It only performs
   basic normalization and rejects accidental multiple statements.
+- Agents using this package should generate SQL without semicolons. A trailing
+  `;` is stripped, but any remaining `;` is treated as an accidental
+  multi-statement query and rejected.
 - `pandas_to_clickhouse_types()` is intentionally conservative and incomplete.
   Extend the mapping carefully when new pandas dtypes are needed.
 - `insert_df_by_chunks()` currently has less dependency-injection support than
